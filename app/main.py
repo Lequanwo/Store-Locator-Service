@@ -17,6 +17,9 @@ from app.models.refresh_token import RefreshToken
 from app.api.auth import router as auth_router
 from app.api.admin_stores import router as admin_stores_router
 
+from app.scripts.seed_users import seed_users
+from app.scripts.import_stores import import_stores
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Store Locator API")
