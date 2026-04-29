@@ -34,3 +34,12 @@ app.include_router(admin_stores_router)
 @app.get("/")
 def root():
     return {"message": "Store Locator API is running"}
+
+@app.on_event("startup")
+def startup_event():
+    try:
+        seed_users()
+        import_stores()
+        print("✅ Seeded production data")
+    except Exception as e:
+        print("⚠️ Seeding skipped or failed:", e)
