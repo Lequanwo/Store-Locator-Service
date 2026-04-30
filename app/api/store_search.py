@@ -13,6 +13,8 @@ from app.services.geocoding import geocode_address, geocode_postal_code
 from fastapi import APIRouter, Depends, Request
 from app.core.limiter import limiter
 
+from app.core.cache import make_cache_key, get_cache, set_cache
+
 router = APIRouter(prefix="/api/stores", tags=["Store Search"])
 
 
@@ -73,6 +75,24 @@ def search_stores(
         )
 
     radius = min(body.radius_miles or 10, 100)
+
+    # Create a cache key based on search parameters
+    cache_payload = {
+            "lat": round(lat, 6),
+            "lon": round(lon, 6),
+            "radius": radius,
+            "services": sorted(body.services or []),
+            "store_types": sorted(body.store_types or []),
+        }
+
+    cache_key = make_cache_key("store_search", cache_payload)
+
+    cached_response = get_cache(cache_key)
+    if cached_response:
+        print("✅ Store search cache hit")
+        return cached_response
+    
+    print("Store search cache miss")
 
     # 1. Bounding box
     lat_delta = radius / 69.0
@@ -143,16 +163,18 @@ def search_stores(
     # 6. Sort nearest first
     results.sort(key=lambda x: x["distance_miles"])
 
-    return {
+    response = {
         "metadata": {
-            "searched_location": {
-                "latitude": lat,
-                "longitude": lon,
-            },
+            "searched_location": searched_location,
             "radius_miles": radius,
             "services": body.services,
             "store_types": body.store_types,
             "result_count": len(results),
+            "cache": "miss",
         },
         "results": results,
     }
+
+    set_cache(cache_key, response)
+
+    return response
