@@ -42,7 +42,7 @@ def root():
 def startup_event():
     try:
         seed_users()
-        import_stores("data/stores_50.csv")
+        import_stores("data/stores_1000.csv")
         print("✅ Seeded production data")
     except Exception as e:
         print("⚠️ Seeding skipped or failed:", e)
