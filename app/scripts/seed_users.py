@@ -25,6 +25,12 @@ def seed_users():
             "password": "ViewerTest123!",
             "role": "viewer",
         },
+        {
+            "user_id": "U004",
+            "email": "test_viewer@test.com",
+            "password": "1234",
+            "role": "viewer",
+        },
     ]
 
     for u in users:

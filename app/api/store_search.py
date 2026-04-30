@@ -113,7 +113,7 @@ def search_stores(
     # 3. store_types filter: OR logic
     if body.store_types:
         query = query.filter(Store.store_type.in_(body.store_types))
-
+    
     candidate_stores = query.all()
 
     results = []
@@ -126,6 +126,9 @@ def search_stores(
 
             if not required_services.issubset(store_services):
                 continue
+                
+        # check if store is open based on current day and hours - OPTIONAL ENHANCEMENT
+
 
         # 5. Exact distance
         distance = geodesic(

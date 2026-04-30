@@ -20,6 +20,8 @@ from app.api.admin_stores import router as admin_stores_router
 from app.scripts.seed_users import seed_users
 from app.scripts.import_stores import import_stores
 
+from app.api.admin_users import router as admin_users_router
+
 Base.metadata.create_all(bind=engine)
 
 app = FastAPI(title="Store Locator API")
@@ -28,11 +30,15 @@ app.state.limiter = limiter
 app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 app.add_middleware(SlowAPIMiddleware)
 
+
+# Include routers
 app.include_router(store_search_router)
 
 app.include_router(auth_router)
 
 app.include_router(admin_stores_router)
+
+app.include_router(admin_users_router)
 
 @app.get("/")
 def root():
@@ -42,7 +48,9 @@ def root():
 def startup_event():
     try:
         seed_users()
-        import_stores("data/stores_1000.csv")
+        filename = "data/stores_50.csv"
+        import_stores(filename)
+        print("✅ import csv data completed", filename)
         print("✅ Seeded production data")
     except Exception as e:
         print("⚠️ Seeding skipped or failed:", e)
