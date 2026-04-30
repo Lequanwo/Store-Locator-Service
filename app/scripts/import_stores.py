@@ -68,6 +68,8 @@ def import_stores(csv_file_path: str):
                 "failed": failed,
             }
 
+        print(f"Imported stores: {created} created, {updated} updated, {len(failed)} failed")    
+
         db.commit()
 
         return {
