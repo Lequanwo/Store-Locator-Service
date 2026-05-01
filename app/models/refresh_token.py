@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Boolean, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, Index, Boolean
 from app.db.database import Base
 import uuid
 
@@ -16,4 +16,4 @@ class RefreshToken(Base):
 
     # user_id = Column(String, ForeignKey("users.user_id"), nullable=False)
 
-    
+   

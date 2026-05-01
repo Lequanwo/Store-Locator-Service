@@ -1,4 +1,5 @@
-from sqlalchemy import Column, String, Boolean
+from sqlalchemy import Column, String, Boolean, ForeignKey, Index, Integer
+from sqlalchemy.orm import relationship
 from app.db.database import Base
 
 
@@ -10,3 +11,5 @@ class User(Base):
     password_hash = Column(String, nullable=False)
     role = Column(String, nullable=False)  # admin, marketer, viewer
     is_active = Column(Boolean, default=True)
+
+    

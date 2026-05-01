@@ -12,3 +12,5 @@ class StoreSearchRequest(BaseModel):
     radius_miles: Optional[float] = 10
     services: Optional[List[str]] = None
     store_types: Optional[List[str]] = None
+
+    open_now: Optional[bool] = False

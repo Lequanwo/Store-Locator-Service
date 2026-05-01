@@ -14,7 +14,7 @@ def geocode_address(query: str):
         print("✅ Geocoding cache hit")
         return cached
 
-    print("🌐 Calling Nominatim API")
+    print("Calling Nominatim API")
 
     url = "https://nominatim.openstreetmap.org/search"
 

@@ -53,7 +53,6 @@ Supports geospatial search, authentication, admin operations, and scalable API d
 ### Performance & Reliability
 - Rate limiting (SlowAPI)
 - Bounding box optimization for geospatial queries
-- Health check endpoint (`/health`)
 - Production deployment on Render
 
 ---
@@ -178,3 +177,5 @@ Observability (metrics & logging)
 ## Author
 
 Lequan Wang
+
+## 

@@ -35,6 +35,7 @@ def create_user(
     ).first()
 
     if existing:
+        print(f"User creation failed: user_id {body.user_id} or email {body.email} already exists")
         raise HTTPException(status_code=400, detail="User already exists")
 
     user = User(
@@ -75,15 +76,22 @@ def update_user(
 
     update_data = body.dict(exclude_unset=True)
 
+    # check if empty update
+    if not update_data:
+        raise HTTPException(status_code=400, detail="No fields to update")
+
     if "role" in update_data:
         if update_data["role"] not in ALLOWED_ROLES:
             raise HTTPException(status_code=400, detail="Invalid role")
 
     for field, value in update_data.items():
+        # no password updates
+        if field == "password":
+            continue
         setattr(user, field, value)
 
     db.commit()
-    db.refresh(user)
+    # db.refresh(user)
 
     return serialize_user(user)
 
@@ -101,7 +109,7 @@ def deactivate_user(
 
     user.is_active = False
     db.commit()
-    db.refresh(user)
+    # db.refresh(user)
 
     return {
         "message": "User deactivated",

@@ -1,4 +1,5 @@
-from sqlalchemy import Column, String, Float
+from sqlalchemy import Column, String, Float, Index, Integer
+from sqlalchemy.orm import relationship
 from app.db.database import Base
 
 
@@ -7,7 +8,7 @@ class Store(Base):
 
     store_id = Column(String, primary_key=True, index=True)
 
-    name = Column(String, nullable=False)
+    name = Column(String(255), nullable=False)
     store_type = Column(String, nullable=False)
     status = Column(String, nullable=False)
 
@@ -16,9 +17,9 @@ class Store(Base):
 
     address_street = Column(String)
     address_city = Column(String)
-    address_state = Column(String(2))
-    address_postal_code = Column(String(5))
-    address_country = Column(String(3))
+    address_state = Column(String(10))
+    address_postal_code = Column(String(10))
+    address_country = Column(String(10))
 
     phone = Column(String)
 
@@ -31,3 +32,5 @@ class Store(Base):
     hours_fri = Column(String)
     hours_sat = Column(String)
     hours_sun = Column(String)
+
+   

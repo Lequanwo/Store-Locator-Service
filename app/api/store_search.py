@@ -17,6 +17,13 @@ from app.core.cache import make_cache_key, get_cache, set_cache
 
 router = APIRouter(prefix="/api/stores", tags=["Store Search"])
 
+def check_cache(searched_info, radius):
+    cache_payload = {"searched_info": searched_info,"radius": radius}
+    cache_key = make_cache_key("geocoding_results", cache_payload)
+    cached_geo = get_cache(cache_key)
+    if cached_geo is not None:
+        return cached_geo
+    return None
 
 @router.post("/search")
 @limiter.limit("10/minute")
@@ -41,32 +48,58 @@ def search_stores(
         }
 
     elif body.postal_code:
-        geo = geocode_postal_code(body.postal_code)
+        if check_cache(body.postal_code, body.radius_miles):
+            print("Store search geocoding cache hit")
+            cached_geo = check_cache(body.postal_code, body.radius_miles)
+            lat = cached_geo["latitude"]
+            lon = cached_geo["longitude"]
+            searched_location = {
+                "input_type": "postal_code",
+                "postal_code": body.postal_code,
+                **cached_geo,
+            }
+        else:
+            geo = geocode_postal_code(body.postal_code)
 
-        if not geo:
-            raise HTTPException(status_code=400, detail="Could not geocode postal code")
+            if not geo:
+                raise HTTPException(status_code=400, detail="Could not geocode postal code")
 
-        lat = geo["latitude"]
-        lon = geo["longitude"]
-        searched_location = {
-            "input_type": "postal_code",
-            "postal_code": body.postal_code,
-            **geo,
-        }
+            lat = geo["latitude"]
+            lon = geo["longitude"]
+            searched_location = {
+                "input_type": "postal_code",
+                "postal_code": body.postal_code,
+                **geo,
+            }
+
+            set_cache(make_cache_key("geocoding_results", {"searched_info": body.postal_code,"radius": body.radius_miles}), geo)
 
     elif body.address:
-        geo = geocode_address(body.address)
+        if check_cache(body.address, body.radius_miles):
+            print("Store search geocoding cache hit")
+            cached_geo = check_cache(body.address, body.radius_miles)
+            lat = cached_geo["latitude"]
+            lon = cached_geo["longitude"]
+            searched_location = {
+                "input_type": "address",
+                "address": body.address,
+                **cached_geo,
+            }
+        else:
+            geo = geocode_address(body.address)
 
-        if not geo:
-            raise HTTPException(status_code=400, detail="Could not geocode address")
+            if not geo:
+                raise HTTPException(status_code=400, detail="Could not geocode address")
 
-        lat = geo["latitude"]
-        lon = geo["longitude"]
-        searched_location = {
-            "input_type": "address",
-            "address": body.address,
-            **geo,
-        }
+            lat = geo["latitude"]
+            lon = geo["longitude"]
+            searched_location = {
+                "input_type": "address",
+                "address": body.address,
+                **geo,
+            }
+
+            set_cache(make_cache_key("geocoding_results", {"searched_info": body.address,"radius": body.radius_miles}), geo)
 
     else:
         raise HTTPException(
@@ -75,24 +108,6 @@ def search_stores(
         )
 
     radius = min(body.radius_miles or 10, 100)
-
-    # Create a cache key based on search parameters
-    cache_payload = {
-            "lat": round(lat, 6),
-            "lon": round(lon, 6),
-            "radius": radius,
-            "services": sorted(body.services or []),
-            "store_types": sorted(body.store_types or []),
-        }
-
-    cache_key = make_cache_key("store_search", cache_payload)
-
-    cached_response = get_cache(cache_key)
-    if cached_response:
-        print("✅ Store search cache hit")
-        return cached_response
-    
-    print("Store search cache miss")
 
     # 1. Bounding box
     lat_delta = radius / 69.0
@@ -126,11 +141,31 @@ def search_stores(
 
             if not required_services.issubset(store_services):
                 continue
-                
-        # check if store is open based on current day and hours - OPTIONAL ENHANCEMENT
+        
+        # check if open now filter
+        # print(f"Checking store {store.store_id} for open_now filter")
+        if body.open_now:
+            # print store id
+            # print(f"Store {store.store_id} is being checked for open_now filter")
+            from datetime import datetime
+            # only take time into account, ignore date since hours are the same every day
+            now = datetime.now()
+            weekday = now.strftime("%a").lower()  
+            # print(f"Store hours for {weekday}: {getattr(store, f'hours_{weekday}', None)}")
+            hours_str = getattr(store, f"hours_{weekday}", None)
 
+            if hours_str and hours_str.lower() != "closed":
+                open_time_str, close_time_str = hours_str.split("-")
+                open_time = datetime.strptime(open_time_str.strip(), "%H:%M").time()
+                close_time = datetime.strptime(close_time_str.strip(), "%H:%M").time()
+
+                if not (open_time <= now.time() <= close_time):
+                    continue
+            else:
+                continue
 
         # 5. Exact distance
+        # print(f"Calculating distance from searched location to store {store.store_id}")
         distance = geodesic(
             (lat, lon),
             (store.latitude, store.longitude),
@@ -173,11 +208,10 @@ def search_stores(
             "services": body.services,
             "store_types": body.store_types,
             "result_count": len(results),
-            "cache": "miss",
         },
         "results": results,
     }
 
-    set_cache(cache_key, response)
+    
 
     return response

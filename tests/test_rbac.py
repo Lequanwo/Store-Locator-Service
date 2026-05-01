@@ -46,3 +46,19 @@ def test_marketer_can_delete_store():
     )
 
     assert response.status_code == 200
+
+def test_marketer_cannot_manage_users():
+    token = get_token("marketer@test.com", "MarketerTest123!")
+
+    response = client.post(
+        "/api/admin/users",
+        headers={"Authorization": f"Bearer {token}"},
+        json={
+            "user_id": "testuser2",
+            "email": "testuser2@example.com",
+            "password": "TestUser2123!",
+            "role": "viewer",
+        }
+    )
+
+    assert response.status_code == 403

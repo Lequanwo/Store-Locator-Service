@@ -1,3 +1,5 @@
+from email import message
+
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
@@ -6,17 +8,20 @@ from app.models.store import Store
 from app.auth.dependencies import get_current_user, require_roles
 from app.models.user import User
 
-from app.schemas.store_update import StoreUpdateRequest
+from app.schemas.store_update import StoreUpdateRequest, StoreCreateRequest
 
 from fastapi import UploadFile, File
 import csv
 from io import StringIO
 from sqlalchemy.exc import SQLAlchemyError
 
+from app.services.geocoding import geocode_address, geocode_postal_code
+
 router = APIRouter(prefix="/api/admin/stores", tags=["Admin Stores"])
 
-def serialize_store(s: Store):
+def serialize_store(s: Store, message: str):
     return {
+        "message": message,
         "store_id": s.store_id,
         "name": s.name,
         "store_type": s.store_type,
@@ -47,28 +52,75 @@ def serialize_store(s: Store):
 @router.get("")
 def list_stores(
     db: Session = Depends(get_db),
-    current_user: User = Depends(require_roles("admin", "marketer")),
+    current_user: User = Depends(require_roles("admin", "marketer", "viewer")),
 ):
     total_stores = db.query(Store).count()
     stores = db.query(Store).limit(total_stores).all()
 
     return {
         "total":total_stores,
-        "stores": [serialize_store(s) for s in stores]
+        "stores": [serialize_store(s, "Store details") for s in stores]
     }
+
+# create store endpoint 
+@router.post("")
+def create_store(
+    body: StoreCreateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_roles("admin", "marketer")),
+):
+    existing_store = db.query(Store).filter(Store.store_id == body.store_id).first()
+
+    if existing_store:
+        # reactivate if already exists but inactive, otherwise reject duplicate store_id
+        if existing_store.status == "inactive":
+            existing_store.status = "active"
+            db.commit()
+            return serialize_store(existing_store, "Store reactivated")
+        
+    # create new store with provided details
+    store = Store(
+        store_id=body.store_id,
+        name=body.name,
+        store_type=body.store_type,
+        status=body.status,
+        latitude=body.latitude,
+        longitude=body.longitude,
+        address_street=body.address_street,
+        address_city=body.address_city,
+        address_state=body.address_state,
+        address_postal_code=body.address_postal_code,
+        address_country=body.address_country,
+        phone=body.phone,
+        services="|".join(body.services) if body.services else None,
+        hours_mon=body.hours_mon,
+        hours_tue=body.hours_tue,
+        hours_wed=body.hours_wed,
+        hours_thu=body.hours_thu,
+        hours_fri=body.hours_fri,
+        hours_sat=body.hours_sat,
+        hours_sun=body.hours_sun,
+    )
+    db.add(store)
+    db.commit()
+    # db.refresh(store)
+
+    return serialize_store(store, "Store created")
+
+
 
 @router.get("/{store_id}")
 def get_store_detail(
     store_id: str,
     db: Session = Depends(get_db),
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_roles("admin", "marketer")),
 ):
     store = db.query(Store).filter(Store.store_id == store_id).first()
 
     if not store:
         raise HTTPException(status_code=404, detail="Store not found")
 
-    return serialize_store(store)
+    return serialize_store(store, "Store details")
 
 
 @router.delete("/{store_id}")
@@ -121,13 +173,24 @@ def update_store(
 
     # Apply updates
     updated_fields = []
+    # for field, value in update_data.items():
+    #     # update only if value is not None (allows partial updates) 
+    #     # and field exists on the model 
+    #     # and different from current value
+    #     if value is not None and hasattr(store, field) and getattr(store, field) != value:
+    #         updated_fields.append(field)
+    #         setattr(store, field, value)
+
+    # all or nothing - if any field is invalid, reject entire update to avoid partial updates
     for field, value in update_data.items():
-        # update only if value is not None (allows partial updates) 
-        # and field exists on the model 
-        # and different from current value
-        if value is not None and hasattr(store, field) and getattr(store, field) != value:
-            updated_fields.append(field)
-            setattr(store, field, value)
+        if not hasattr(store, field):
+            raise HTTPException(status_code=400, detail=f"Invalid field included: {field}, not allowed for update. No updates applied.")
+
+        if value is None:
+            continue  # skip null values to allow partial updates
+        
+        updated_fields.append(field)
+        setattr(store, field, value) # possibly update with same value, but that's ok - we will check for changes in the test cases to ensure update logic is working as expected
 
     db.commit()
 
@@ -190,7 +253,7 @@ def import_stores_csv(
 
                     lat = geo["latitude"]
                     lon = geo["longitude"]
-                    
+
                 # Validate range of lat/lon
                 if not (-90 <= lat <= 90 and -180 <= lon <= 180):
                     raise ValueError("Invalid coordinates")
